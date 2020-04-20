@@ -1,0 +1,13 @@
+extends StaticBody
+
+# Called when the node enters the scene tree for the first time.
+func _ready():
+	#Setup to check for area collisions
+	$"Area".connect("area_entered", self, "hit")
+
+#Runs if this object collides with another area node
+func hit(object):
+	#If the collision is with the bullet area, destroy this object, and call the players win function
+	if object.name == 'Bullet Area':
+		queue_free()
+		get_tree().call_group("player", "win")

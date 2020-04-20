@@ -1,0 +1,35 @@
+extends KinematicBody
+
+#Variables for movement
+var speed = 75
+var velocity = Vector3()
+
+#Get reference to timer node
+onready var timer = get_node("Timer")
+
+#Called when object is created, set up initial functionality
+func _ready():
+	#Connect the area to detect collisions and start a 1 second timer
+	$"Bullet Area".connect("area_entered", self, "hit")
+	timer.start(1)
+
+#Function sets the starting position and movement for the bullet prefab
+func start(start_pos):
+	transform = start_pos
+	
+	velocity = +transform.basis.y * -speed
+
+#Basic physics process keeps the bullet moving
+func _process(delta):
+	transform.origin += velocity * delta
+
+
+#When the timer set earlier ends, delete this object, keeps memory from getting clogged up
+func _on_Timer_timeout():
+	queue_free()
+
+#Called if this object enters another area node
+func hit(object):
+	#If the object hits anything that's not the AI's detection node, destroy this object
+	if object.name != 'Detection Area':
+		queue_free()

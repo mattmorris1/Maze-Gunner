@@ -1,0 +1,149 @@
+extends KinematicBody
+
+# Declaring variables for movement, camera angle and mouse sensitivity
+var camera_angle = 0
+var mouse_sensitivity = 0.3
+var velocity = Vector3()
+var direction = Vector3()
+
+#Declaring variables to track health and bools for win lose conditions
+var current_health = 5
+const MAX_HEALTH = 5
+var is_Dead = false
+var is_Win = false
+
+#Preload a reference to the bullet prefab
+var Bullet = preload("res://Prefabs/Bullet.tscn")
+
+#walk variables
+var gravity = -9.8 * 3
+const MAX_SPEED = 10
+const MAX_RUNNING_SPEED = 20
+const ACCEL = 2
+const DEACCEL = 6
+
+#jumping
+var jump_height = 10
+
+#Reference to timer node
+onready var timer = get_node("Timer")
+
+# Called when the node enters the scene tree for the first time.
+func _ready():
+	#Adds the player to the player group
+	add_to_group("player")
+	#Connects the player area to check for collisions
+	$"Player Area".connect("area_entered", self, "hit")
+	#Sets the health display to show the current health
+	$Control/HealthLabel.text = "Health: " + str(current_health)
+	#Sets the notification label to start message and starts timer
+	$Control/NotificationLabel.text = "GL HF"
+	timer.start(2)
+
+#Physics called every frame, calls walk function for movement
+func _physics_process(delta):
+	walk(delta)
+
+#Checks for input events, including mouse movement. If mouse movement, move the head and camera along with the mouse
+func _input(event):
+	if event is InputEventMouseMotion:
+		$Head.rotate_y(deg2rad(-event.relative.x * mouse_sensitivity))
+		var change = -event.relative.y * mouse_sensitivity
+		if change + camera_angle < 90 and change + camera_angle > -90:
+			$Head/Camera.rotate_x(deg2rad(change))
+			camera_angle += change
+
+#This function is used for player movement and input
+func walk(delta):
+	#Set up movement direction
+	direction = Vector3()
+	
+	#Sets aim to follow camera
+	var aim = $Head/Camera.get_camera_transform().basis
+	#Checks for arrow or AWSD keys to be pressed and moves the player 
+	if Input.is_action_pressed("ui_up")  && (is_Dead == false):
+		direction -= aim.z
+	if Input.is_action_pressed("ui_down")  && (is_Dead == false):
+		direction += aim.z
+	if Input.is_action_pressed("ui_left")  && (is_Dead == false):
+		direction -= aim.x
+	if Input.is_action_pressed("ui_right")  && (is_Dead == false):
+		direction += aim.x
+	#Normalizes player movement
+	direction = direction.normalized()
+	#Player is constantly pulled down by gravity
+	velocity.y += gravity * delta
+	#Sets temp velocity to velocity and sets y velocity to 0
+	var temp_velocity = velocity
+	temp_velocity.y = 0
+	#Sets up movement speed, checks if shift is held down and sets speed to normal or sprinting speed accordingly
+	var speed
+	if Input.is_action_pressed("ui_shift")  && (is_Dead == false):
+		speed = MAX_RUNNING_SPEED
+	else:
+		speed = MAX_SPEED
+	#Sets target equal to direction times speed. Sets acceleration
+	var target = direction * speed
+	var acceleration
+	#Checks if direction isn't zero and speeds player up or slowers player down
+	if direction.dot(temp_velocity) > 0:
+		acceleration = ACCEL
+	else:
+		acceleration = DEACCEL
+	#Moves the player every way but down based on current temp velocity
+	temp_velocity = temp_velocity.linear_interpolate(target, acceleration * delta)
+	velocity.x = temp_velocity.x
+	velocity.z = temp_velocity.z
+	velocity = move_and_slide(velocity, Vector3(0, 1, 0))
+	#Checks if space bar is pressed and sets the player to jump
+	if Input.is_action_just_pressed("ui_jump")  && (is_Dead == false):
+		velocity.y = jump_height
+	#Checks if the mouse button is pressed and calls the fire function
+	if Input.is_action_just_pressed("ui_click")  && (is_Dead == false):
+		shoot()
+
+#This function is used to fire the gun
+func shoot():
+	#Instances a bullet prefab
+	var b = Bullet.instance()
+	#Sets bullet to start at the muzzle node at the end of the gun barrel
+	b.start($Head/Camera/Gun/Muzzle.global_transform)
+	#Makes the bullet a child of the world node
+	get_parent().add_child(b)
+
+#This function is called when the player collides with an area node
+func hit(object):
+	#Checks if the collision is with the unit AI
+	if object.name == 'Unit Area':
+		#Lowers the health by 1 and updates the health display
+		current_health -= 1
+		$Control/HealthLabel.text = "Health: " + str(current_health)
+		#Checks if the player is at 0 health. If so it sets the player to dead which prevents movement
+		if current_health <= 0:
+			is_Dead = true
+			#Update the display box to show the death message, start a timer for 2 seconds
+			$Control/NotificationLabel.text = "You died"
+			timer.start(2)
+
+#This function is called if the player wins the game
+func win():
+	#Sets the win condition to true
+	is_Win = true
+	#Updates the display to show the you won message, sets a 2 second timer
+	$Control/NotificationLabel.text = "You Won"
+	timer.start(2)
+
+#This function is called whenever a timer ends
+func _on_Timer_timeout():
+	#Clears the display message 
+	$Control/NotificationLabel.text = ""
+	#Checks if the player is dead
+	if current_health <= 0:
+		#Sets death tracker to false and restarts the game
+		is_Dead = false
+		get_tree().reload_current_scene()
+	#Checks if the game was won
+	if is_Win:
+		#Sets the win tracker to false and restarts the game
+		is_Win = false
+		get_tree().reload_current_scene()

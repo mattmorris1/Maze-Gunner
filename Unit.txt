@@ -1,0 +1,44 @@
+extends KinematicBody
+
+#Set up variables for the pathfinding and movement speed
+var path = []
+var path_ind = 0
+var move_speed = 2
+
+#Get reference to the parent navigation node
+onready var nav = get_parent()
+
+#Setup run when object is created
+func _ready():
+	#Add this object to the units group
+	add_to_group("units")
+	#Setup to check for collisions entering or exiting the hitbox and the detection range
+	$"Unit Area".connect("area_entered", self, "hit")
+	$"Detection Area".connect("area_entered", self, "detect")
+	$"Detection Area".connect("area_exited", self, "detect")
+
+func _physics_process(delta):
+	#Pathfinding code. If the path has objects in it, move towards the current path target
+	if path_ind < path.size():
+		var move_vec = (path[path_ind] - global_transform.origin)
+		if move_vec.length() < 0.1:
+			path_ind += 1
+		else:
+			move_and_slide(move_vec.normalized() * move_speed, Vector3(0, 1, 0))
+
+#Basic function for finding and setting movement towards the current target
+func move_to(target_pos):
+	path = nav.get_simple_path(global_transform.origin, target_pos)
+	path_ind = 0
+
+#Called if collision is detected on the hitbox
+func hit(object):
+	#If this object hits a bullet or the player, delete this object
+	if object.name == 'Bullet Area' || object.name == 'Player Area':
+		queue_free()
+		
+#Called if collision is detected in the detection area
+func detect(object):
+	#If the collision is with the player object, set the player as the pathfinding target
+	if object.name == 'Player Area':
+		move_to(object.global_transform.origin)
